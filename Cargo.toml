@@ -1,0 +1,8 @@
+[package]
+name = "lucinda"
+version = "0.1.0"
+description = "Sparse LU Decomposition (Gilbert-Peierls)"
+edition = "2021"
+
+[dependencies]
+sorted-vec = "0.8.2"
