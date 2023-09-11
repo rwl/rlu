@@ -1,7 +1,7 @@
-use lucinda::{lsolve, lu_decomposition, usolve, Matrix, Row};
+use lucinda::{lsolve, lu_decomposition, usolve, Matrix};
 
 fn main() {
-    let n = 100;
+    let n = 10;
     let mut a_mat: Matrix = vec![vec![]; n];
     for i in 0..n {
         if i == n - 1 {
@@ -28,16 +28,22 @@ fn main() {
     //     |      2 5 4|
     //     |1       2 5|
 
-    let mut x: Row = vec![];
-    for i in 0..n {
-        x.push((i, i as f64 + 1.0));
-    }
+    let mut b = (1..=n).map(|i| i as f64).collect();
     // x = [1,2,...,n]'
 
     let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat);
-    x = usolve(&u_mat, &mut lsolve(&l_mat, &x));
+    lsolve(&l_mat, &mut b);
+    usolve(&u_mat, &mut b);
+    let x = b;
 
-    for e in x {
-        println!("{} {}", e.0, e.1);
+    for xi in &x {
+        println!("{}", xi);
     }
+    let mut b2 = vec![0.0; n];
+    for j in 0..n {
+        for (i, aij) in &a_mat[j] {
+            b2[*i] += *aij * x[j];
+        }
+    }
+    println!("{:?}", b2);
 }

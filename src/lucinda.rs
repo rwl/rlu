@@ -1,16 +1,20 @@
-use std::{cell::RefCell, cmp::Reverse, collections::BTreeMap};
+use std::{cell::RefCell, collections::BTreeMap};
 
-use sorted_vec::{ReverseSortedVec, SortedVec};
+use sorted_vec::SortedVec;
 
-// Simplified Compressed Row Storage
-pub type Entry = (usize, f64);
-pub type Row = Vec<Entry>;
-pub type Matrix = Vec<Row>;
+// Simplified Compressed Column Storage
+//
+// > We shall represent a column vector as a sequence of records, each containing a
+// value and a row index. The row indices need not be in increasing order. We shall
+// represent a matrix as an array of column vectors indexed from 0 to n.
+pub type Record = (usize, f64);
+pub type Col = Vec<Record>;
+pub type Matrix = Vec<Col>;
 
 // LU decomposition without reordering (Gilbert-Peierls)
 //
 // Note: A is LU-decomposable <=> all principal minors are nonsingular
-pub fn lsolve(l_mat: &Matrix, b: &Row) -> BTreeMap<usize, RefCell<f64>> {
+fn sp_lsolve(l_mat: &Matrix, b: &Col) -> BTreeMap<usize, RefCell<f64>> {
     // FOR(e, b) x[e->fst] = e->snd;
     // FOR(e, x) FOR(l, L[e->fst])
     //   x[l->fst] -= l->snd * e->snd;
@@ -39,8 +43,6 @@ pub fn lsolve(l_mat: &Matrix, b: &Row) -> BTreeMap<usize, RefCell<f64>> {
 
                     if l.0 > e0 {
                         x_cols.insert(l.0);
-                    } else {
-                        println!("{} {}", l.0, e0);
                     }
                 }
             };
@@ -52,67 +54,63 @@ pub fn lsolve(l_mat: &Matrix, b: &Row) -> BTreeMap<usize, RefCell<f64>> {
     x
 }
 
-pub fn usolve(u_mat: &Matrix, b: &mut BTreeMap<usize, RefCell<f64>>) -> Row {
-    // FORR(e, b) FORR(u, U[e->fst])
-    //   if (u->fst == e->fst) e->snd /= u->snd;
-    //   else b[u->fst] -= u->snd * e->snd;
+pub fn lsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
+    // FOR(e, b) x[e->fst] = e->snd;
+    // FOR(e, x) FOR(l, L[e->fst])
+    //   x[l->fst] -= l->snd * e->snd;
 
-    let mut b_cols =
-        ReverseSortedVec::from_unsorted(Vec::from_iter(b.keys().into_iter().map(|&k| Reverse(k))));
+    for e0 in 0..b.len() {
+        for l in &l_mat[e0] {
+            b[l.0] -= l.1 * b[e0];
+        }
+    }
+}
 
-    let mut i = 0;
-    while i < b_cols.len() {
-        let e0 = b_cols[i];
-
-        for u in u_mat[e0.0].iter().rev() {
-            if u.0 == e0.0 {
-                let e1_rc = b.get_mut(&e0.0).unwrap();
-                let mut e1 = e1_rc.borrow_mut();
-                *e1 /= u.1;
+pub fn usolve(u_mat: &Matrix, b: &mut Vec<f64>) {
+    for e0 in (0..b.len()).rev() {
+        for u in u_mat[e0].iter().rev() {
+            if u.0 == e0 {
+                b[e0] /= u.1;
             } else {
-                let e1 = b[&e0.0].borrow().to_owned();
-
-                match b.get_mut(&u.0) {
-                    Some(bu0_rc) => {
-                        let mut bu0 = bu0_rc.borrow_mut();
-                        *bu0 -= u.1 * e1;
-                    }
-                    None => {
-                        b.insert(u.0, RefCell::new(-u.1 * e1));
-
-                        if u.0 > e0.0 {
-                            b_cols.insert(Reverse(u.0));
-                        } else {
-                            println!("{} {}", u.0, e0.0);
-                        }
-                    }
-                }
+                b[u.0] -= u.1 * b[e0];
             }
         }
-
-        i += 1;
     }
-    let mut x: Row = Vec::with_capacity(b.len());
-    for e in b {
-        x.push((*e.0, e.1.borrow().to_owned()));
-    }
-    x
 }
+
+// 1. for j:= to n do
+// 2.   {Compute column j of U and L.}
+// 3.   Solve Ljuj = aj for uj;
+// 4.   b'j := a'j - L'juj;
+// 5.   Pivot: Swap bjj with the largest-magnitude element of b'j;
+// 6.   ujj := bjj;
+// 7.   l'j := b'j / ujj;
+// 8. od
 
 pub fn lu_decomposition(a_mat: &Matrix) -> (Matrix, Matrix) {
     let n = a_mat.len();
     let mut l_mat: Matrix = vec![vec![]; n];
     let mut u_mat: Matrix = vec![vec![]; n];
-    for k in 0..n {
-        let s: BTreeMap<usize, RefCell<f64>> = lsolve(&l_mat, &a_mat[k]);
-        let d = match s.get(&k) {
-            Some(d) => d.borrow(),
-            None => s.last_key_value().unwrap().1.borrow(),
-        };
-        u_mat[k] = s.range(..k + 1).map(|e| (*e.0, *e.1.borrow())).collect();
-        l_mat[k] = s.range(k + 1..).map(|e| (*e.0, *e.1.borrow())).collect();
+    for j in 0..n {
+        let s: BTreeMap<usize, RefCell<f64>> = sp_lsolve(&l_mat, &a_mat[j]);
 
-        for l in &mut l_mat[k] {
+        // No pivoting, diagonal element has irow = jcol.
+        // Partial pivoting, diagonal elt. has max. magnitude in L.
+
+        let d = match s.get(&j) {
+            Some(d) => d.borrow(),
+            None => s.last_key_value().unwrap().1.borrow(), // numerically zero diagonal element at column
+        };
+
+        // Copy the column elements of U and L, throwing out zeros.
+        u_mat[j] = s.range(..j + 1).map(|e| (*e.0, *e.1.borrow())).collect(); // todo: throw out zeros
+        l_mat[j] = s.range(j + 1..).map(|e| (*e.0, *e.1.borrow())).collect();
+
+        // todo: Diagonal element has been found. Swap U(jcol,jcol) from L into U.
+        // Record the pivot in P.
+
+        // Divide column j of L by U(j,j).
+        for l in &mut l_mat[j] {
             l.1 /= *d;
         }
     }
