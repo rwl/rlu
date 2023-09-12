@@ -66,13 +66,37 @@ pub fn lsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
     }
 }
 
+pub fn ltsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
+    for e0 in (0..b.len()).rev() {
+        for l in l_mat[e0].iter().rev() {
+            b[e0] -= l.1 * b[l.0];
+        }
+    }
+}
+
 pub fn usolve(u_mat: &Matrix, b: &mut Vec<f64>) {
+    // FORR(e, b) FORR(u, U[e->fst])
+    //   if (u->fst == e->fst) e->snd /= u->snd;
+    //   else b[u->fst] -= u->snd * e->snd;
+
     for e0 in (0..b.len()).rev() {
         for u in u_mat[e0].iter().rev() {
             if u.0 == e0 {
                 b[e0] /= u.1;
             } else {
                 b[u.0] -= u.1 * b[e0];
+            }
+        }
+    }
+}
+
+pub fn utsolve(u_mat: &Matrix, b: &mut Vec<f64>) {
+    for e0 in 0..b.len() {
+        for u in &u_mat[e0] {
+            if u.0 == e0 {
+                b[e0] /= u.1;
+            } else {
+                b[e0] -= u.1 * b[u.0];
             }
         }
     }
