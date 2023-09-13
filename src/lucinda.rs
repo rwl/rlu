@@ -24,11 +24,11 @@ fn sp_lsolve(l_mat: &Matrix, b: &Col) -> BTreeMap<usize, RefCell<f64>> {
         x.insert(e.0, RefCell::new(e.1));
     }
 
-    let mut x_cols = SortedVec::from_unsorted(Vec::from_iter(x.keys().cloned()));
+    let mut x_rows = SortedVec::from_unsorted(Vec::from_iter(x.keys().cloned()));
 
     let mut i = 0;
-    while i < x_cols.len() {
-        let e0 = x_cols[i];
+    while i < x_rows.len() {
+        let e0 = x_rows[i];
 
         for l in &l_mat[e0] {
             let e1 = x[&e0].borrow().to_owned();
@@ -42,7 +42,7 @@ fn sp_lsolve(l_mat: &Matrix, b: &Col) -> BTreeMap<usize, RefCell<f64>> {
                     x.insert(l.0, RefCell::new(-l.1 * e1));
 
                     if l.0 > e0 {
-                        x_cols.insert(l.0);
+                        x_rows.insert(l.0);
                     }
                 }
             };
@@ -54,7 +54,7 @@ fn sp_lsolve(l_mat: &Matrix, b: &Col) -> BTreeMap<usize, RefCell<f64>> {
     x
 }
 
-pub fn lsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
+pub fn lsolve(l_mat: &Matrix, b: &mut [f64]) {
     // FOR(e, b) x[e->fst] = e->snd;
     // FOR(e, x) FOR(l, L[e->fst])
     //   x[l->fst] -= l->snd * e->snd;
@@ -66,7 +66,7 @@ pub fn lsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
     }
 }
 
-pub fn ltsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
+pub fn ltsolve(l_mat: &Matrix, b: &mut [f64]) {
     for e0 in (0..b.len()).rev() {
         for l in l_mat[e0].iter().rev() {
             b[e0] -= l.1 * b[l.0];
@@ -74,7 +74,7 @@ pub fn ltsolve(l_mat: &Matrix, b: &mut Vec<f64>) {
     }
 }
 
-pub fn usolve(u_mat: &Matrix, b: &mut Vec<f64>) {
+pub fn usolve(u_mat: &Matrix, b: &mut [f64]) {
     // FORR(e, b) FORR(u, U[e->fst])
     //   if (u->fst == e->fst) e->snd /= u->snd;
     //   else b[u->fst] -= u->snd * e->snd;
@@ -90,7 +90,7 @@ pub fn usolve(u_mat: &Matrix, b: &mut Vec<f64>) {
     }
 }
 
-pub fn utsolve(u_mat: &Matrix, b: &mut Vec<f64>) {
+pub fn utsolve(u_mat: &Matrix, b: &mut [f64]) {
     for e0 in 0..b.len() {
         for u in &u_mat[e0] {
             if u.0 == e0 {
@@ -111,12 +111,18 @@ pub fn utsolve(u_mat: &Matrix, b: &mut Vec<f64>) {
 // 7.   l'j := b'j / ujj;
 // 8. od
 
-pub fn lu_decomposition(a_mat: &Matrix) -> (Matrix, Matrix) {
+pub fn lu_decomposition(a_mat: &Matrix, col_perm: Option<&[usize]>) -> (Matrix, Matrix) {
     let n = a_mat.len();
     let mut l_mat: Matrix = vec![vec![]; n];
     let mut u_mat: Matrix = vec![vec![]; n];
     for j in 0..n {
-        let s: BTreeMap<usize, RefCell<f64>> = sp_lsolve(&l_mat, &a_mat[j]);
+        let j2 = match col_perm {
+            Some(perm) => perm[j],
+            None => j,
+        };
+        // Compute the values of column jcol of L and U in the vector,
+        // allocating storage for fill in L as necessary.
+        let s: BTreeMap<usize, RefCell<f64>> = sp_lsolve(&l_mat, &a_mat[j2]); // s = L\A[:,j]
 
         // No pivoting, diagonal element has irow = jcol.
         // Partial pivoting, diagonal elt. has max. magnitude in L.

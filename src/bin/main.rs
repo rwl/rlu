@@ -1,4 +1,6 @@
-use lucinda::{lsolve, ltsolve, lu_decomposition, usolve, utsolve, Matrix};
+use std::iter::zip;
+
+use lucinda::{lsolve, lu_decomposition, usolve, Matrix};
 
 fn main() {
     let n = 10;
@@ -28,32 +30,50 @@ fn main() {
     //     |      2 5 4|
     //     |1       2 5|
 
-    let b: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+    // let p = None;
+    let mut p: Vec<usize> = (0..n).map(|i| i).collect();
+    p.swap(3, 4);
+    p.swap(1, 9);
+    p.swap(5, 6);
+    println!("p = {:?}", p);
+
+    let b0: Vec<f64> = (1..=n).map(|i| i as f64).collect();
     // x = [1,2,...,n]'
+    // let b0: Vec<f64> = (0..n).map(|i| 1.0 + i as f64 / n as f64).collect();
+    // x = [1,...,2]'
 
     {
-        let mut b = b.clone();
-        let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat);
+        let mut b = b0.clone();
+        let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat, Some(&p));
         lsolve(&l_mat, &mut b);
         usolve(&u_mat, &mut b);
-        let x = b;
 
-        for xi in &x {
-            println!("{}", xi);
+        let mut x = vec![0.0; n]; // inverse permutation
+        for i in 0..n {
+            x[p[i]] = b[i];
         }
+
+        // Matrix-vector multiply b2 = A*x and print residual.
         let mut b2 = vec![0.0; n];
         for j in 0..n {
             for (i, aij) in &a_mat[j] {
                 b2[*i] += *aij * x[j];
             }
         }
-        println!("{:?}", b2);
+        b2.iter().for_each(|bi| println!("{}", bi));
+        println!(
+            "resid: {}",
+            zip(b2, &b0)
+                .map(|(b2, b0)| f64::abs(b2 - b0))
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap()
+        );
     }
     {
-        let mut b = b.clone();
-        let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat);
-        utsolve(&u_mat, &mut b);
-        ltsolve(&l_mat, &mut b);
+        let mut b = b0.clone();
+        let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat, None);
+        lucinda::utsolve(&u_mat, &mut b);
+        lucinda::ltsolve(&l_mat, &mut b);
         let x = b;
 
         let mut b2 = vec![0.0; n];
