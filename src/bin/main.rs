@@ -31,26 +31,39 @@ fn main() {
     //     |1       2 5|
 
     // let p = None;
-    let mut p: Vec<usize> = (0..n).map(|i| i).collect();
-    p.swap(3, 4);
-    p.swap(1, 9);
-    p.swap(5, 6);
-    println!("p = {:?}", p);
+    let mut q: Vec<usize> = (0..n).map(|i| i).collect();
+    q.swap(0, 1);
+    // q.swap(3, 4);
+    // q.swap(1, 9);
+    // q.swap(5, 6);
+    println!("q = {:?}", q);
 
     let b0: Vec<f64> = (1..=n).map(|i| i as f64).collect();
     // x = [1,2,...,n]'
     // let b0: Vec<f64> = (0..n).map(|i| 1.0 + i as f64 / n as f64).collect();
     // x = [1,...,2]'
 
+    // let pivot = false;
+    let pivot = true;
+
     {
-        let mut b = b0.clone();
-        let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat, Some(&p));
+        // let mut b = b0.clone();
+        let (l_mat, u_mat, p) = lu_decomposition(&a_mat, Some(&q), pivot);
+
+        println!("p = {:?}", p);
+
+        let mut b = vec![0.0; n];
+        for i in 0..n {
+            b[p[i]] = b0[i];
+            // b[i] = b0[i];
+        }
+
         lsolve(&l_mat, &mut b);
         usolve(&u_mat, &mut b);
 
         let mut x = vec![0.0; n]; // inverse permutation
         for i in 0..n {
-            x[p[i]] = b[i];
+            x[q[i]] = b[i];
         }
 
         // Matrix-vector multiply b2 = A*x and print residual.
