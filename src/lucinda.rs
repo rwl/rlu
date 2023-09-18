@@ -44,38 +44,55 @@ pub fn lu_decomposition(
     let mut l_mat: Matrix = vec![vec![]; n];
     let mut u_mat: Matrix = vec![vec![]; n];
 
+    // > We compute uj as a dense n-vector, so that in step 3.3 we can subtract a multiple
+    // of column k of Lj from it in constant time per nonzero in that column.
+    let mut x = vec![0.0; n];
+
     for k in 0..n {
         let kp = match col_perm {
             Some(perm) => perm[k],
             None => k,
         };
-        // Compute the values of column jcol of L and U in the vector,
+        // Compute the values of column jcol of L and U in the *dense* vector,
         // allocating storage for fill in L as necessary.
-        let mut s: BTreeMap<usize, RefCell<f64>> = sp_lsolve(&l_mat, &a_mat[kp], &p); // s = L\A[:,j]
-        assert_ne!(s.len(), 0);
+        // let mut s: BTreeMap<usize, RefCell<f64>> = sp_lsolve(&l_mat, &a_mat[kp], &p); // s = L\A[:,j]
+        sp_lsolve_d(&l_mat, &a_mat[kp], &mut x); // s = L\A[:,j]
+                                                 // assert_ne!(s.len(), 0);
 
-        let d = match s.get(&k) {
-            Some(d) => d.borrow().to_owned(),
-            // None => s.last_key_value().unwrap().1.borrow().to_owned(),
-            None => 0.0, // numerically zero diagonal element at column
-        };
+        // let d = match s.get(&k) {
+        //     Some(d) => d.borrow().to_owned(),
+        //     // None => s.last_key_value().unwrap().1.borrow().to_owned(),
+        //     None => 0.0, // numerically zero diagonal element at column
+        // };
+        let d = x[k];
 
         // No pivoting, diagonal element has irow = jcol.
         // Partial pivoting, diagonal elt. has max. magnitude in L.
-        let (pivrow, maxpiv) = s
-            .range(k + 1..)
-            .max_by(|(_, v0_rc), (_, v1_rc)| {
-                let v0 = v0_rc.borrow().abs();
-                let v1 = v1_rc.borrow().abs();
-                v0.partial_cmp(&v1).unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .map(|(i, v_rc)| (*i, v_rc.borrow().to_owned()))
-            .unwrap_or((k, d));
+        // let (pivrow, maxpiv) = s
+        //     .range(k + 1..)
+        //     .max_by(|(_, v0_rc), (_, v1_rc)| {
+        //         let v0 = v0_rc.borrow().abs();
+        //         let v1 = v1_rc.borrow().abs();
+        //         v0.partial_cmp(&v1).unwrap_or(std::cmp::Ordering::Equal)
+        //     })
+        //     .map(|(i, v_rc)| (*i, v_rc.borrow().to_owned()))
+        //     .unwrap_or((k, d));
+        let mut pivrow = k;
+        let mut maxpiv = d;
+        for (i, xi) in x.iter().enumerate() {
+            if i > k {
+                if x[i] > maxpiv {
+                    pivrow = i;
+                    maxpiv = x[i];
+                }
+            }
+        }
 
         // TODO: threshold pivoting.
         let piv = if pivot && !pivots.contains(&pivrow) && maxpiv > d {
             // Swap the max. value in L with the diagonal U(k,k).
-            s.insert(k, RefCell::new(maxpiv));
+            // s.insert(k, RefCell::new(maxpiv));
+            x[k] = maxpiv;
             // s.insert(pivrow, RefCell::new(d));
 
             // Record the pivot in P.
@@ -90,8 +107,25 @@ pub fn lu_decomposition(
         };
 
         // Copy the column elements of U and L, throwing out zeros.
-        u_mat[k] = s.range(..k + 1).map(|e| (*e.0, *e.1.borrow())).collect(); // todo: throw out zeros
-        l_mat[k] = s.range(k + 1..).map(|e| (*e.0, *e.1.borrow())).collect();
+        let u_mat_k: Vec<(usize, f64)> = x
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i <= k)
+            .filter(|(_, xi)| **xi != 0.0)
+            .map(|(i, xi)| (i, *xi))
+            .collect();
+        let l_mat_k: Vec<(usize, f64)> = x
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i > k)
+            .filter(|(_, xi)| **xi != 0.0)
+            .map(|(i, xi)| (i, *xi))
+            .collect();
+        u_mat[k] = u_mat_k;
+        l_mat[k] = l_mat_k;
+
+        // u_mat[k] = s.range(..k + 1).map(|e| (*e.0, *e.1.borrow())).collect(); // todo: throw out zeros
+        // l_mat[k] = s.range(k + 1..).map(|e| (*e.0, *e.1.borrow())).collect();
 
         // Divide column k of L by U(k,k).
         for l in &mut l_mat[k] {
@@ -107,6 +141,28 @@ pub fn lu_decomposition(
     }
 
     (l_mat, u_mat, p)
+}
+
+fn sp_lsolve_d(l_mat: &Matrix, b: &Col, x: &mut Vec<f64>) {
+    // FOR(e, b) x[e->fst] = e->snd;
+    // FOR(e, x) FOR(l, L[e->fst])
+    //   x[l->fst] -= l->snd * e->snd;
+
+    // > Since we know the nonzero structure of uj before we start,
+    // we need only initialize and manipulate the positions in this
+    // dense vector that correspond to nonzero positions. TODO
+    x.fill(0.0);
+    for (bi, bx) in b {
+        x[*bi] = *bx; // scatter
+    }
+
+    for e0 in 0..x.len() {
+        for l in &l_mat[e0] {
+            let e1 = x[e0];
+
+            x[l.0] -= l.1 * e1;
+        }
+    }
 }
 
 fn sp_lsolve(l_mat: &Matrix, b: &Col, p: &[usize]) -> BTreeMap<usize, RefCell<f64>> {

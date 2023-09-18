@@ -3,7 +3,7 @@ use std::iter::zip;
 use lucinda::{lsolve, lu_decomposition, usolve, Matrix};
 
 fn main() {
-    let n = 10;
+    let n = 5;
     let mut a_mat: Matrix = vec![vec![]; n];
     for i in 0..n {
         if i == n - 1 {
@@ -33,7 +33,7 @@ fn main() {
     // let p = None;
     let mut q: Vec<usize> = (0..n).map(|i| i).collect();
     q.swap(0, 1);
-    // q.swap(3, 4);
+    // q.swap(2, 3);
     // q.swap(1, 9);
     // q.swap(5, 6);
     println!("q = {:?}", q);
@@ -43,8 +43,8 @@ fn main() {
     // let b0: Vec<f64> = (0..n).map(|i| 1.0 + i as f64 / n as f64).collect();
     // x = [1,...,2]'
 
-    // let pivot = false;
-    let pivot = true;
+    let pivot = false;
+    // let pivot = true;
 
     {
         // let mut b = b0.clone();
@@ -54,8 +54,8 @@ fn main() {
 
         let mut b = vec![0.0; n];
         for i in 0..n {
-            b[p[i]] = b0[i];
-            // b[i] = b0[i];
+            // b[p[i]] = b0[i];
+            b[i] = b0[i];
         }
 
         lsolve(&l_mat, &mut b);
@@ -64,6 +64,7 @@ fn main() {
         let mut x = vec![0.0; n]; // inverse permutation
         for i in 0..n {
             x[q[i]] = b[i];
+            // x[i] = b[i];
         }
 
         // Matrix-vector multiply b2 = A*x and print residual.
@@ -82,6 +83,7 @@ fn main() {
                 .unwrap()
         );
     }
+    #[cfg(feature = "ignored")]
     {
         let mut b = b0.clone();
         let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat, None);
