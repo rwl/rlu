@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashSet},
-};
-
-use sorted_vec::SortedVec;
+use sparsetools::{csc::CSC, csr::CSR, graph::depth_first_order};
 
 // Simplified Compressed Column Storage
 //
@@ -13,6 +8,28 @@ use sorted_vec::SortedVec;
 pub type Record = (usize, f64);
 pub type Col = Vec<Record>;
 pub type Matrix = Vec<Col>;
+
+pub fn matrix_to_csr(m: &Matrix) -> CSR<usize, f64> {
+    let n = m.len();
+    let mut rowidx = vec![];
+    let mut colptr = vec![]; // n + 1
+    let mut data = vec![];
+
+    let mut idxptr: usize = 0;
+    for col in m {
+        colptr.push(idxptr);
+        for (j, x) in col {
+            data.push(*x);
+            rowidx.push(*j);
+            idxptr += 1
+        }
+    }
+    colptr.push(idxptr);
+
+    let csc = CSC::new(n, n, rowidx, colptr, data).unwrap();
+
+    csc.to_csr()
+}
 
 // 1. for j:= to n do
 // 2.   {Compute column j of U and L.}
@@ -30,16 +47,13 @@ pub fn lu_decomposition(
     a_mat: &Matrix,
     col_perm: Option<&[usize]>,
     pivot: bool,
-) -> (Matrix, Matrix, Vec<usize>) {
+) -> (Matrix, Matrix, Vec<Option<usize>>) {
     let n = a_mat.len();
 
     // row_perm(r) = Some(s) means row r of A is row s < jcol of PA (LU = PA).
     // row_perm(r) = None means row r of A has not yet been used as a
     // pivot and is therefore still below the diagonal.
-    let mut pivots = HashSet::new();
-    // let mut row_perm: Vec<Option<usize>> = vec![None; n];
-    // let mut row_perm_inv: Vec<Option<usize>> = vec![None; n];
-    let mut p: Vec<usize> = (0..n).collect();
+    let mut row_perm: Vec<Option<usize>> = vec![None; n];
 
     let mut l_mat: Matrix = vec![vec![]; n];
     let mut u_mat: Matrix = vec![vec![]; n];
@@ -53,97 +67,115 @@ pub fn lu_decomposition(
             Some(perm) => perm[k],
             None => k,
         };
+        println!("\nk = {}, kp = {}", k, kp);
+
+        // Depth-first search from each above-diagonal nonzero of column jcol of A.
+        let found = ludfs(&l_mat, &a_mat[kp]);
+
         // Compute the values of column jcol of L and U in the *dense* vector,
         // allocating storage for fill in L as necessary.
-        // let mut s: BTreeMap<usize, RefCell<f64>> = sp_lsolve(&l_mat, &a_mat[kp], &p); // s = L\A[:,j]
-        sp_lsolve_d(&l_mat, &a_mat[kp], &mut x); // s = L\A[:,j]
-                                                 // assert_ne!(s.len(), 0);
+        lucomp(&l_mat, &a_mat[kp], &mut x, &row_perm, &found); // s = L\A[:,j]
 
-        // let d = match s.get(&k) {
-        //     Some(d) => d.borrow().to_owned(),
-        //     // None => s.last_key_value().unwrap().1.borrow().to_owned(),
-        //     None => 0.0, // numerically zero diagonal element at column
-        // };
-        let d = x[k];
+        let d = x[k]; // TODO: numerically zero diagonal element at column check
 
-        // No pivoting, diagonal element has irow = jcol.
         // Partial pivoting, diagonal elt. has max. magnitude in L.
-        // let (pivrow, maxpiv) = s
-        //     .range(k + 1..)
-        //     .max_by(|(_, v0_rc), (_, v1_rc)| {
-        //         let v0 = v0_rc.borrow().abs();
-        //         let v1 = v1_rc.borrow().abs();
-        //         v0.partial_cmp(&v1).unwrap_or(std::cmp::Ordering::Equal)
-        //     })
-        //     .map(|(i, v_rc)| (*i, v_rc.borrow().to_owned()))
-        //     .unwrap_or((k, d));
-        let mut pivrow = k;
-        let mut maxpiv = d;
-        for (i, xi) in x.iter().enumerate() {
-            if i > k {
-                if x[i] > maxpiv {
-                    pivrow = i;
-                    maxpiv = x[i];
-                }
+        let mut pivt = found
+            .iter()
+            .filter(|i| row_perm[**i].is_none())
+            .map(|&i| (i, x[i].abs()))
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .expect("pivot must exist");
+
+        println!("pivrow = {}, maxpiv = {:.6}, d = {:.6}", pivt.0, pivt.1, d);
+
+        // TODO: Threshold pivoting.
+        if !pivot || (row_perm[k].is_none() && d.abs() >= pivt.1) {
+            // No pivoting, diagonal element has irow = jcol.
+            pivt = (k, d);
+        };
+
+        // Copy the column elements of U, throwing out zeros.
+        for &i in &found {
+            if let Some(ip) = row_perm[i] {
+                u_mat[k].push((ip, x[i]));
             }
         }
 
-        // TODO: threshold pivoting.
-        let piv = if pivot && !pivots.contains(&pivrow) && maxpiv > d {
-            // Swap the max. value in L with the diagonal U(k,k).
-            // s.insert(k, RefCell::new(maxpiv));
-            x[k] = maxpiv;
-            // s.insert(pivrow, RefCell::new(d));
+        // Swap the max. value in L with the diagonal U(k,k).
+        u_mat[k].push((k, pivt.1));
 
-            // Record the pivot in P.
-            // row_perm[pivrow] = Some(k);
-            // row_perm_inv[k] = Some(pivrow);
-            p.swap(pivrow, k);
-            pivots.insert(pivrow);
+        // Record the pivot in P.
+        row_perm[pivt.0] = Some(k);
 
-            maxpiv // new diagonal value
-        } else {
-            d
-        };
-
-        // Copy the column elements of U and L, throwing out zeros.
-        let u_mat_k: Vec<(usize, f64)> = x
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i <= k)
-            .filter(|(_, xi)| **xi != 0.0)
-            .map(|(i, xi)| (i, *xi))
-            .collect();
-        let l_mat_k: Vec<(usize, f64)> = x
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i > k)
-            .filter(|(_, xi)| **xi != 0.0)
-            .map(|(i, xi)| (i, *xi))
-            .collect();
-        u_mat[k] = u_mat_k;
-        l_mat[k] = l_mat_k;
-
-        // u_mat[k] = s.range(..k + 1).map(|e| (*e.0, *e.1.borrow())).collect(); // todo: throw out zeros
-        // l_mat[k] = s.range(k + 1..).map(|e| (*e.0, *e.1.borrow())).collect();
-
-        // Divide column k of L by U(k,k).
-        for l in &mut l_mat[k] {
-            l.1 /= piv;
+        // Copy the column elements of L, throwing out zeros.
+        for &i in &found {
+            if row_perm[i].is_none() {
+                // Divide column k of L by U(k,k).
+                l_mat[k].push((i, x[i] / pivt.1));
+            }
         }
+
+        // println!("U[:,k] = {:?}", u_mat[k]);
+        // println!("L[:,k] = {:?}", l_mat[k]);
+
+        // {
+        //     let csgraph = matrix_to_csr(&u_mat);
+        //     print!("U =\n{}", csgraph.to_table());
+        // }
+        // {
+        //     let csgraph = matrix_to_csr(&l_mat);
+        //     print!("L =\n{}", csgraph.to_table());
+        // }
     }
 
     // Renumber the rows so the data structure represents L and U, not PtL and PtU.
     for row in &mut l_mat {
         for e in row {
-            e.0 = p[e.0];
+            match row_perm[e.0] {
+                Some(e0) => e.0 = e0,
+                None => panic!(),
+            }
         }
     }
+    println!("L =\n{}", matrix_to_csr(&l_mat).to_table());
 
-    (l_mat, u_mat, p)
+    (l_mat, u_mat, row_perm)
 }
 
-fn sp_lsolve_d(l_mat: &Matrix, b: &Col, x: &mut Vec<f64>) {
+fn ludfs(l_mat: &Matrix, b: &Col) -> Vec<usize> {
+    println!("b = {:?}", b);
+
+    let csgraph = matrix_to_csr(l_mat);
+    print!("L =\n{}", csgraph.to_table());
+
+    // let mut found = HashSet::new();
+    let mut found = Vec::new();
+    for (bi, _) in b {
+        let (nodes, _) = depth_first_order(&csgraph, *bi, false).unwrap();
+        for node in nodes {
+            // println!("node[{}] = {}", bi, node);
+            if !found.contains(&node) {
+                // found.insert(0, node);
+                found.push(node);
+            }
+        }
+    }
+    found.sort();
+    println!("found = {:?}", found);
+
+    // > The one remaining issue is that the depth-first search must mark the vertices it
+    // has reached, to avoid repeating parts of the search.
+
+    found
+}
+
+fn lucomp(
+    l_mat: &Matrix,
+    b: &Col,
+    x: &mut Vec<f64>,
+    rperm: &Vec<Option<usize>>,
+    found: &Vec<usize>,
+) {
     // FOR(e, b) x[e->fst] = e->snd;
     // FOR(e, x) FOR(l, L[e->fst])
     //   x[l->fst] -= l->snd * e->snd;
@@ -156,56 +188,18 @@ fn sp_lsolve_d(l_mat: &Matrix, b: &Col, x: &mut Vec<f64>) {
         x[*bi] = *bx; // scatter
     }
 
-    for e0 in 0..x.len() {
+    // for e0 in 0..x.len() {
+    for j in found {
+        let e0 = match rperm[*j] {
+            Some(jp) => jp,
+            None => continue,
+        };
         for l in &l_mat[e0] {
             let e1 = x[e0];
 
             x[l.0] -= l.1 * e1;
         }
     }
-}
-
-fn sp_lsolve(l_mat: &Matrix, b: &Col, p: &[usize]) -> BTreeMap<usize, RefCell<f64>> {
-    // FOR(e, b) x[e->fst] = e->snd;
-    // FOR(e, x) FOR(l, L[e->fst])
-    //   x[l->fst] -= l->snd * e->snd;
-
-    let mut x = BTreeMap::<usize, RefCell<f64>>::new();
-    for e in b {
-        x.insert(e.0, RefCell::new(e.1));
-    }
-
-    let mut x_rows = SortedVec::from_unsorted(Vec::from_iter(x.keys().cloned()));
-
-    let mut i = 0;
-    while i < x_rows.len() {
-        let e0 = x_rows[i];
-        // let e0p = p[e0];
-        let e0p = e0;
-
-        for l in &l_mat[e0p] {
-            let l0p = p[l.0];
-            let e1 = x[&e0].borrow().to_owned();
-
-            match x.get(&l0p) {
-                Some(xl0_rc) => {
-                    let mut xl0 = xl0_rc.try_borrow_mut().unwrap();
-                    *xl0 -= l.1 * e1;
-                }
-                None => {
-                    x.insert(l.0, RefCell::new(-l.1 * e1));
-
-                    if l.0 > e0 {
-                        x_rows.insert(l.0);
-                    }
-                }
-            };
-        }
-
-        i += 1;
-    }
-
-    x
 }
 
 pub fn lsolve(l_mat: &Matrix, b: &mut [f64]) {

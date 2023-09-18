@@ -1,6 +1,6 @@
 use std::iter::zip;
 
-use lucinda::{lsolve, lu_decomposition, usolve, Matrix};
+use lucinda::{lsolve, lu_decomposition, matrix_to_csr, usolve, Matrix};
 
 fn main() {
     let n = 5;
@@ -29,12 +29,14 @@ fn main() {
     //     |    2 5 4 3|
     //     |      2 5 4|
     //     |1       2 5|
+    print!("A =\n{}", matrix_to_csr(&a_mat).to_table());
 
     // let p = None;
     let mut q: Vec<usize> = (0..n).map(|i| i).collect();
-    q.swap(0, 1);
+    q.swap(0, 0);
+    // q.swap(0, 1);
     // q.swap(2, 3);
-    // q.swap(1, 9);
+    // q.swap(0, 4);
     // q.swap(5, 6);
     println!("q = {:?}", q);
 
@@ -42,6 +44,7 @@ fn main() {
     // x = [1,2,...,n]'
     // let b0: Vec<f64> = (0..n).map(|i| 1.0 + i as f64 / n as f64).collect();
     // x = [1,...,2]'
+    println!("b = {:?}", b0);
 
     let pivot = false;
     // let pivot = true;
