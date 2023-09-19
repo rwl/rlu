@@ -1,4 +1,8 @@
-use sparsetools::{csc::CSC, csr::CSR, graph::depth_first_order};
+use std::collections::BTreeSet;
+
+use sparsetools::{csc::CSC, csr::CSR};
+
+use crate::dfs::ludfs;
 
 // Simplified Compressed Column Storage
 //
@@ -9,7 +13,7 @@ pub type Record = (usize, f64);
 pub type Col = Vec<Record>;
 pub type Matrix = Vec<Col>;
 
-pub fn matrix_to_csr(m: &Matrix) -> CSR<usize, f64> {
+pub fn matrix_to_csc(m: &Matrix) -> CSC<usize, f64> {
     let n = m.len();
     let mut rowidx = vec![];
     let mut colptr = vec![]; // n + 1
@@ -26,9 +30,11 @@ pub fn matrix_to_csr(m: &Matrix) -> CSR<usize, f64> {
     }
     colptr.push(idxptr);
 
-    let csc = CSC::new(n, n, rowidx, colptr, data).unwrap();
+    CSC::new(n, n, rowidx, colptr, data).unwrap()
+}
 
-    csc.to_csr()
+pub fn matrix_to_csr(m: &Matrix) -> CSR<usize, f64> {
+    matrix_to_csc(m).to_csr()
 }
 
 // 1. for j:= to n do
@@ -68,15 +74,25 @@ pub fn lu_decomposition(
             None => k,
         };
         println!("\nk = {}, kp = {}", k, kp);
+        {
+            let csgraph = matrix_to_csr(&u_mat);
+            print!("U =\n{}", csgraph.to_table());
+        }
+        {
+            let csgraph = matrix_to_csr(&l_mat);
+            print!("L =\n{}", csgraph.to_table());
+        }
+        println!("rperm = {:?}", row_perm);
 
         // Depth-first search from each above-diagonal nonzero of column jcol of A.
-        let found = ludfs(&l_mat, &a_mat[kp]);
+        let found = ludfs(&l_mat, &a_mat[kp], &row_perm);
 
         // Compute the values of column jcol of L and U in the *dense* vector,
         // allocating storage for fill in L as necessary.
         lucomp(&l_mat, &a_mat[kp], &mut x, &row_perm, &found); // s = L\A[:,j]
+        println!("x = {:?}", x);
 
-        let d = x[k]; // TODO: numerically zero diagonal element at column check
+        let d = x[kp]; // TODO: numerically zero diagonal element at column check
 
         // Partial pivoting, diagonal elt. has max. magnitude in L.
         let mut pivt = found
@@ -89,9 +105,9 @@ pub fn lu_decomposition(
         println!("pivrow = {}, maxpiv = {:.6}, d = {:.6}", pivt.0, pivt.1, d);
 
         // TODO: Threshold pivoting.
-        if !pivot || (row_perm[k].is_none() && d.abs() >= pivt.1) {
+        if !pivot || (row_perm[kp].is_none() && d.abs() >= pivt.1) {
             // No pivoting, diagonal element has irow = jcol.
-            pivt = (k, d);
+            pivt = (kp, d);
         };
 
         // Copy the column elements of U, throwing out zeros.
@@ -108,6 +124,7 @@ pub fn lu_decomposition(
         row_perm[pivt.0] = Some(k);
 
         // Copy the column elements of L, throwing out zeros.
+        l_mat[k].push((pivt.0, 1.0));
         for &i in &found {
             if row_perm[i].is_none() {
                 // Divide column k of L by U(k,k).
@@ -117,15 +134,6 @@ pub fn lu_decomposition(
 
         // println!("U[:,k] = {:?}", u_mat[k]);
         // println!("L[:,k] = {:?}", l_mat[k]);
-
-        // {
-        //     let csgraph = matrix_to_csr(&u_mat);
-        //     print!("U =\n{}", csgraph.to_table());
-        // }
-        // {
-        //     let csgraph = matrix_to_csr(&l_mat);
-        //     print!("L =\n{}", csgraph.to_table());
-        // }
     }
 
     // Renumber the rows so the data structure represents L and U, not PtL and PtU.
@@ -142,39 +150,12 @@ pub fn lu_decomposition(
     (l_mat, u_mat, row_perm)
 }
 
-fn ludfs(l_mat: &Matrix, b: &Col) -> Vec<usize> {
-    println!("b = {:?}", b);
-
-    let csgraph = matrix_to_csr(l_mat);
-    print!("L =\n{}", csgraph.to_table());
-
-    // let mut found = HashSet::new();
-    let mut found = Vec::new();
-    for (bi, _) in b {
-        let (nodes, _) = depth_first_order(&csgraph, *bi, false).unwrap();
-        for node in nodes {
-            // println!("node[{}] = {}", bi, node);
-            if !found.contains(&node) {
-                // found.insert(0, node);
-                found.push(node);
-            }
-        }
-    }
-    found.sort();
-    println!("found = {:?}", found);
-
-    // > The one remaining issue is that the depth-first search must mark the vertices it
-    // has reached, to avoid repeating parts of the search.
-
-    found
-}
-
 fn lucomp(
     l_mat: &Matrix,
     b: &Col,
     x: &mut Vec<f64>,
     rperm: &Vec<Option<usize>>,
-    found: &Vec<usize>,
+    found: &BTreeSet<usize>,
 ) {
     // FOR(e, b) x[e->fst] = e->snd;
     // FOR(e, x) FOR(l, L[e->fst])
@@ -187,6 +168,7 @@ fn lucomp(
     for (bi, bx) in b {
         x[*bi] = *bx; // scatter
     }
+    println!("x = {:?}", x);
 
     // for e0 in 0..x.len() {
     for j in found {
@@ -195,6 +177,9 @@ fn lucomp(
             None => continue,
         };
         for l in &l_mat[e0] {
+            if l.0 == e0 {
+                continue;
+            }
             let e1 = x[e0];
 
             x[l.0] -= l.1 * e1;
@@ -209,7 +194,11 @@ pub fn lsolve(l_mat: &Matrix, b: &mut [f64]) {
 
     for e0 in 0..b.len() {
         for l in &l_mat[e0] {
-            b[l.0] -= l.1 * b[e0];
+            if l.0 == e0 {
+                b[e0] /= l.1;
+            } else {
+                b[l.0] -= l.1 * b[e0];
+            }
         }
     }
 }

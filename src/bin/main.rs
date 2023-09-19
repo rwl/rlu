@@ -46,8 +46,8 @@ fn main() {
     // x = [1,...,2]'
     println!("b = {:?}", b0);
 
-    let pivot = false;
-    // let pivot = true;
+    // let pivot = false;
+    let pivot = true;
 
     {
         // let mut b = b0.clone();
@@ -57,8 +57,8 @@ fn main() {
 
         let mut b = vec![0.0; n];
         for i in 0..n {
-            // b[p[i]] = b0[i];
-            b[i] = b0[i];
+            b[p[i].unwrap()] = b0[i];
+            // b[i] = b0[i];
         }
 
         lsolve(&l_mat, &mut b);
