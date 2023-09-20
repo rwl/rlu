@@ -33,8 +33,8 @@ fn main() {
 
     // let p = None;
     let mut q: Vec<usize> = (0..n).map(|i| i).collect();
-    q.swap(0, 0);
-    // q.swap(0, 1);
+    // q.swap(0, 0);
+    q.swap(0, 1);
     // q.swap(2, 3);
     // q.swap(0, 4);
     // q.swap(5, 6);
