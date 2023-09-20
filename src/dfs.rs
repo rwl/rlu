@@ -1,4 +1,4 @@
-use crate::{matrix_to_csc, Col, Matrix};
+use crate::{debug, matrix_to_csc, Col, Matrix};
 
 // Depth-first-search workspace.
 pub struct DFS {
@@ -17,10 +17,10 @@ impl DFS {
     }
 
     pub fn ludfs(&mut self, l_mat: &Matrix, b: &Col, rperm: &Vec<Option<usize>>) -> &[usize] {
-        println!("b = {:?}", b);
+        debug!("b = {:?}", b);
 
         let csgraph = matrix_to_csc(l_mat);
-        // print!("L =\n{}", csgraph.to_table());
+        // debug!("L =\n{}", csgraph.to_table());
 
         let n = csgraph.cols();
         let indices = csgraph.rowidx();
@@ -39,7 +39,7 @@ impl DFS {
 
             self.dfs(e.0, indices, indptr, &mut i_rl_start, rperm);
         }
-        println!("found = {:?}", self.root_list[i_rl_start..].to_vec());
+        debug!("found = {:?}", self.root_list[i_rl_start..].to_vec());
 
         &self.root_list[i_rl_start..]
     }
@@ -85,7 +85,7 @@ impl DFS {
                 Some(pnode_p) => indptr[pnode_p + 1],
                 None => 0,
             };
-            // println!(
+            // debug!(
             //     "pnode = {}, pnode_p = {:?}, p1 = {}, p2 = {}",
             //     pnode, pnode_p, indptr1, indptr2
             // );
@@ -101,7 +101,7 @@ impl DFS {
                     // flag[cnode] = true;
                     // i_nl_end += 1;
 
-                    // println!("i_root = {}, cnode = {}", i_root, cnode);
+                    // debug!("i_root = {}, cnode = {}", i_root, cnode);
                     no_children = false;
                     break;
                 }
@@ -116,7 +116,7 @@ impl DFS {
 
                 *i_rl_start -= 1;
                 self.root_list[*i_rl_start] = pnode;
-                // println!("i_rl_start = {}, pnode = {}", *i_rl_start, pnode);
+                // debug!("i_rl_start = {}, pnode = {}", *i_rl_start, pnode);
             }
         }
     }

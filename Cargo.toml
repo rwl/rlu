@@ -7,3 +7,6 @@ edition = "2021"
 [dependencies]
 sorted-vec = "0.8.2"
 sparsetools = "0.1.2"
+
+[features]
+debug = []

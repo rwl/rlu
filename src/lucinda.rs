@@ -73,16 +73,17 @@ pub fn lu_decomposition(
             Some(perm) => perm[k],
             None => k,
         };
-        println!("\nk = {}, kp = {}", k, kp);
+        debug!("\nk = {}, kp = {}", k, kp);
+
+        #[cfg(feature = "debug")]
         {
             let csgraph = matrix_to_csr(&u_mat);
             print!("U =\n{}", csgraph.to_table());
-        }
-        {
+
             let csgraph = matrix_to_csr(&l_mat);
             print!("L =\n{}", csgraph.to_table());
         }
-        println!("rperm = {:?}", row_perm);
+        debug!("rperm = {:?}", row_perm);
 
         // Depth-first search from each nonzero of column jcol of A.
         let found = dfs.ludfs(&l_mat, &a_mat[kp], &row_perm);
@@ -90,7 +91,7 @@ pub fn lu_decomposition(
         // Compute the values of column jcol of L and U in the *dense* vector,
         // allocating storage for fill in L as necessary.
         lucomp(&l_mat, &a_mat[kp], &mut x, &row_perm, &found); // s = L\A[:,j]
-        println!("x = {:?}", x);
+        debug!("x = {:?}", x);
 
         let d = x[kp]; // TODO: numerically zero diagonal element at column check
 
@@ -102,7 +103,7 @@ pub fn lu_decomposition(
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .expect("pivot must exist");
 
-        println!("pivrow = {}, maxpiv = {:.6}, d = {:.6}", pivrow, maxabs, d);
+        debug!("pivrow = {}, maxpiv = {:.6}, d = {:.6}", pivrow, maxabs, d);
 
         // TODO: Threshold pivoting.
         let pivt = if !pivot || (row_perm[kp].is_none() && d.abs() >= maxabs) {
@@ -133,8 +134,8 @@ pub fn lu_decomposition(
             }
         }
 
-        // println!("U[:,k] = {:?}", u_mat[k]);
-        // println!("L[:,k] = {:?}", l_mat[k]);
+        // debug!("U[:,k] = {:?}", u_mat[k]);
+        // debug!("L[:,k] = {:?}", l_mat[k]);
     }
 
     // Renumber the rows so the data structure represents L and U, not PtL and PtU.
@@ -146,7 +147,7 @@ pub fn lu_decomposition(
             }
         }
     }
-    println!("L =\n{}", matrix_to_csr(&l_mat).to_table());
+    debug!("L =\n{}", matrix_to_csr(&l_mat).to_table());
 
     (l_mat, u_mat, row_perm)
 }
@@ -163,7 +164,7 @@ fn lucomp(l_mat: &Matrix, b: &Col, x: &mut Vec<f64>, rperm: &Vec<Option<usize>>,
     for (bi, bx) in b {
         x[*bi] = *bx; // scatter
     }
-    println!("x = {:?}", x);
+    debug!("x = {:?}", x);
 
     // for e0 in 0..x.len() {
     for j in found {
@@ -226,3 +227,15 @@ pub fn utsolve(u_mat: &Matrix, b: &mut [f64]) {
         }
     }
 }
+
+#[cfg(feature = "debug")]
+macro_rules! debug {
+    ($( $args:expr ),*) => { println!( $( $args ),* ); }
+}
+
+#[cfg(not(feature = "debug"))]
+macro_rules! debug {
+    ($( $args:expr ),*) => {};
+}
+
+pub(crate) use debug;
