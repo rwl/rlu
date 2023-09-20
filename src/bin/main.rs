@@ -1,6 +1,6 @@
 use std::iter::zip;
 
-use lucinda::{matrix_to_csr, solve, Matrix};
+use lucinda::{matrix_to_csc, solve, Matrix};
 
 fn main() {
     let n = 5;
@@ -29,7 +29,8 @@ fn main() {
     //     |    2 5 4 3|
     //     |      2 5 4|
     //     |1       2 5|
-    print!("A =\n{}", matrix_to_csr(&a_mat).to_table());
+    let a_csc = matrix_to_csc(&a_mat);
+    print!("A =\n{}", a_csc.to_csr().to_table());
 
     // let p = None;
     let mut q: Vec<usize> = (0..n).map(|i| i).collect();
@@ -70,7 +71,15 @@ fn main() {
         //             // x[i] = b[i];
         //         }
 
-        solve(&a_mat, Some(&q), &mut x, false);
+        solve(
+            a_csc.cols(),
+            a_csc.rowidx(),
+            a_csc.colptr(),
+            a_csc.values(),
+            Some(&q),
+            &mut x,
+            false,
+        );
 
         // Matrix-vector multiply b2 = A*x and print residual.
         let mut b2 = vec![0.0; n];

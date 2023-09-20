@@ -1,3 +1,5 @@
+use std::iter::zip;
+
 use sparsetools::{csc::CSC, csr::CSR};
 
 use crate::dfs::DFS;
@@ -13,32 +15,39 @@ pub type Matrix = Vec<Col>;
 
 pub fn matrix_to_csc(m: &Matrix) -> CSC<usize, f64> {
     let n = m.len();
-    let mut rowidx = vec![];
-    let mut colptr = vec![]; // n + 1
-    let mut data = vec![];
+    let nnz = m.iter().map(|c| c.len()).fold(0, |acc, e| acc + e);
+    let mut rowidx = Vec::with_capacity(nnz);
+    let mut colptr = Vec::with_capacity(n + 1);
+    let mut values = Vec::with_capacity(nnz);
 
     let mut idxptr: usize = 0;
     for col in m {
         colptr.push(idxptr);
         for (j, x) in col {
-            data.push(*x);
+            values.push(*x);
             rowidx.push(*j);
             idxptr += 1
         }
     }
     colptr.push(idxptr);
 
-    CSC::new(n, n, rowidx, colptr, data).unwrap()
+    CSC::new(n, n, rowidx, colptr, values).unwrap()
 }
 
 pub fn matrix_to_csr(m: &Matrix) -> CSR<usize, f64> {
     matrix_to_csc(m).to_csr()
 }
 
-pub fn solve(a_mat: &Matrix, col_perm: Option<&[usize]>, b: &mut [f64], trans: bool) {
-    let n = a_mat.len();
-
-    let (l_mat, u_mat, p) = lu_decomposition(&a_mat, col_perm, true);
+pub fn solve(
+    n: usize,
+    a_rowidx: &[usize],
+    a_colptr: &[usize],
+    a_values: &[f64],
+    col_perm: Option<&[usize]>,
+    b: &mut [f64],
+    trans: bool,
+) {
+    let (l_mat, u_mat, p) = lu_decomposition(n, a_rowidx, a_colptr, a_values, col_perm, true);
 
     let mut x = vec![0.0; n];
     for i in 0..n {
@@ -77,12 +86,13 @@ pub fn solve(a_mat: &Matrix, col_perm: Option<&[usize]>, b: &mut [f64], trans: b
 //
 // Note: A is LU-decomposable <=> all principal minors are nonsingular
 pub fn lu_decomposition(
-    a_mat: &Matrix,
+    n: usize,
+    a_rowidx: &[usize],
+    a_colptr: &[usize],
+    a_values: &[f64],
     col_perm: Option<&[usize]>,
     pivot: bool,
 ) -> (Matrix, Matrix, Vec<Option<usize>>) {
-    let n = a_mat.len();
-
     let mut dfs = DFS::new(n);
 
     // row_perm(r) = Some(s) means row r of A is row s < jcol of PA (LU = PA).
@@ -114,12 +124,15 @@ pub fn lu_decomposition(
         }
         debug!("rperm = {:?}", row_perm);
 
+        let b_rowidx = &a_rowidx[a_colptr[kp]..a_colptr[kp + 1]];
+        let b_values = &a_values[a_colptr[kp]..a_colptr[kp + 1]];
+
         // Depth-first search from each nonzero of column jcol of A.
-        let found = dfs.ludfs(&l_mat, &a_mat[kp], &row_perm);
+        let found = dfs.ludfs(&l_mat, b_rowidx, &row_perm);
 
         // Compute the values of column jcol of L and U in the *dense* vector,
         // allocating storage for fill in L as necessary.
-        lucomp(&l_mat, &a_mat[kp], &mut x, &row_perm, &found); // s = L\A[:,j]
+        lucomp(&l_mat, b_rowidx, b_values, &mut x, &row_perm, &found); // s = L\A[:,j]
         debug!("x = {:?}", x);
 
         let d = x[kp]; // TODO: numerically zero diagonal element at column check
@@ -181,7 +194,14 @@ pub fn lu_decomposition(
     (l_mat, u_mat, row_perm)
 }
 
-fn lucomp(l_mat: &Matrix, b: &Col, x: &mut Vec<f64>, rperm: &Vec<Option<usize>>, found: &[usize]) {
+fn lucomp(
+    l_mat: &Matrix,
+    b_rowidx: &[usize],
+    b_values: &[f64],
+    x: &mut Vec<f64>,
+    rperm: &Vec<Option<usize>>,
+    found: &[usize],
+) {
     // FOR(e, b) x[e->fst] = e->snd;
     // FOR(e, x) FOR(l, L[e->fst])
     //   x[l->fst] -= l->snd * e->snd;
@@ -190,7 +210,7 @@ fn lucomp(l_mat: &Matrix, b: &Col, x: &mut Vec<f64>, rperm: &Vec<Option<usize>>,
     // we need only initialize and manipulate the positions in this
     // dense vector that correspond to nonzero positions. TODO
     x.fill(0.0);
-    for (bi, bx) in b {
+    for (bi, bx) in zip(b_rowidx, b_values) {
         x[*bi] = *bx; // scatter
     }
     debug!("x = {:?}", x);

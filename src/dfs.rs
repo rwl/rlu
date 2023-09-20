@@ -1,4 +1,4 @@
-use crate::{debug, matrix_to_csc, Col, Matrix};
+use crate::{debug, matrix_to_csc, Matrix};
 
 // Depth-first-search workspace.
 pub struct DFS {
@@ -16,8 +16,13 @@ impl DFS {
         }
     }
 
-    pub fn ludfs(&mut self, l_mat: &Matrix, b: &Col, rperm: &Vec<Option<usize>>) -> &[usize] {
-        debug!("b = {:?}", b);
+    pub fn ludfs(
+        &mut self,
+        l_mat: &Matrix,
+        b_rowidx: &[usize],
+        rperm: &Vec<Option<usize>>,
+    ) -> &[usize] {
+        debug!("b = {:?}", b_rowidx);
 
         let csgraph = matrix_to_csc(l_mat);
         // debug!("L =\n{}", csgraph.to_table());
@@ -30,14 +35,14 @@ impl DFS {
 
         self.flag.fill(false);
 
-        for e in b {
+        for &e0 in b_rowidx {
             // The depth-first search must mark the vertices it
             // has reached, to avoid repeating parts of the search.
-            if self.flag[e.0] {
+            if self.flag[e0] {
                 continue;
             }
 
-            self.dfs(e.0, indices, indptr, &mut i_rl_start, rperm);
+            self.dfs(e0, indices, indptr, &mut i_rl_start, rperm);
         }
         debug!("found = {:?}", self.root_list[i_rl_start..].to_vec());
 
