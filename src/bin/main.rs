@@ -1,6 +1,6 @@
 use std::iter::zip;
 
-use lucinda::{lsolve, lu_decomposition, matrix_to_csr, usolve, Matrix};
+use lucinda::{matrix_to_csr, solve, Matrix};
 
 fn main() {
     let n = 5;
@@ -47,28 +47,30 @@ fn main() {
     println!("b = {:?}", b0);
 
     // let pivot = false;
-    let pivot = true;
+    // let pivot = true;
 
     {
-        // let mut b = b0.clone();
-        let (l_mat, u_mat, p) = lu_decomposition(&a_mat, Some(&q), pivot);
+        let mut x = b0.clone();
+        //         let (l_mat, u_mat, p) = lu_decomposition(&a_mat, Some(&q), pivot);
+        //
+        //         println!("p = {:?}", p);
+        //
+        //         let mut b = vec![0.0; n];
+        //         for i in 0..n {
+        //             b[p[i].unwrap()] = b0[i];
+        //             // b[i] = b0[i];
+        //         }
+        //
+        //         lsolve(&l_mat, &mut b);
+        //         usolve(&u_mat, &mut b);
+        //
+        //         let mut x = vec![0.0; n]; // inverse permutation
+        //         for i in 0..n {
+        //             x[q[i]] = b[i];
+        //             // x[i] = b[i];
+        //         }
 
-        println!("p = {:?}", p);
-
-        let mut b = vec![0.0; n];
-        for i in 0..n {
-            b[p[i].unwrap()] = b0[i];
-            // b[i] = b0[i];
-        }
-
-        lsolve(&l_mat, &mut b);
-        usolve(&u_mat, &mut b);
-
-        let mut x = vec![0.0; n]; // inverse permutation
-        for i in 0..n {
-            x[q[i]] = b[i];
-            // x[i] = b[i];
-        }
+        solve(&a_mat, Some(&q), &mut x, false);
 
         // Matrix-vector multiply b2 = A*x and print residual.
         let mut b2 = vec![0.0; n];

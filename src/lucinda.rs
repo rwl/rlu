@@ -35,6 +35,35 @@ pub fn matrix_to_csr(m: &Matrix) -> CSR<usize, f64> {
     matrix_to_csc(m).to_csr()
 }
 
+pub fn solve(a_mat: &Matrix, col_perm: Option<&[usize]>, b: &mut [f64], trans: bool) {
+    let n = a_mat.len();
+
+    let (l_mat, u_mat, p) = lu_decomposition(&a_mat, col_perm, true);
+
+    let mut x = vec![0.0; n];
+    for i in 0..n {
+        x[p[i].unwrap()] = b[i];
+    }
+
+    if !trans {
+        lsolve(&l_mat, &mut x);
+        usolve(&u_mat, &mut x);
+    } else {
+        ltsolve(&l_mat, &mut x);
+        utsolve(&u_mat, &mut x);
+    }
+
+    // let mut x = vec![0.0; n]; // inverse permutation
+    match col_perm {
+        Some(cperm) => {
+            for i in 0..n {
+                b[cperm[i]] = x[i];
+            }
+        }
+        None => b.copy_from_slice(&x),
+    }
+}
+
 // 1. for j:= to n do
 // 2.   {Compute column j of U and L.}
 // 3.   Solve Ljuj = aj for uj;
