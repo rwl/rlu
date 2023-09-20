@@ -179,10 +179,10 @@ fn lucomp(
             None => continue,
         };
         for l in &l_mat[e0] {
-            if l.0 == e0 {
+            if l.0 == *j {
                 continue;
             }
-            let e1 = x[e0];
+            let e1 = x[*j];
 
             x[l.0] -= l.1 * e1;
         }
