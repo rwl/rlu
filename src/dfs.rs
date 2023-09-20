@@ -67,25 +67,25 @@ impl DFS {
 
         // node_list[0] = head_node;
         self.root_list[0] = head_node;
-        let mut i_root: isize = 0;
+        let mut i_root_opt: Option<usize> = Some(0);
         // let mut i_nl_end = 1;
         // flag[head_node] = true;
 
-        while i_root >= 0 {
-            let pnode = self.root_list[i_root as usize];
+        while let Some(mut i_root) = i_root_opt {
+            let pnode = self.root_list[i_root];
             let pnode_p = rperm[pnode];
 
             if !self.flag[pnode] {
                 self.flag[pnode] = true;
                 match pnode_p {
-                    Some(pnode_p) => self.ptr_list[i_root as usize] = indptr[pnode_p],
-                    None => self.ptr_list[i_root as usize] = 0,
+                    Some(pnode_p) => self.ptr_list[i_root] = indptr[pnode_p],
+                    None => self.ptr_list[i_root] = 0,
                 }
             }
 
             let mut no_children = true;
 
-            let indptr1 = self.ptr_list[i_root as usize];
+            let indptr1 = self.ptr_list[i_root];
             let indptr2 = match pnode_p {
                 Some(pnode_p) => indptr[pnode_p + 1],
                 None => 0,
@@ -99,9 +99,10 @@ impl DFS {
                 if self.flag[cnode] {
                     continue;
                 } else {
-                    self.ptr_list[i_root as usize] = i;
+                    self.ptr_list[i_root] = i;
                     i_root += 1;
-                    self.root_list[i_root as usize] = cnode;
+                    i_root_opt = Some(i_root);
+                    self.root_list[i_root] = cnode;
                     // node_list[i_nl_end] = cnode;
                     // flag[cnode] = true;
                     // i_nl_end += 1;
@@ -117,7 +118,7 @@ impl DFS {
             }
 
             if no_children {
-                i_root -= 1;
+                i_root_opt = if i_root > 0 { Some(i_root - 1) } else { None };
 
                 *i_rl_start -= 1;
                 self.root_list[*i_rl_start] = pnode;
