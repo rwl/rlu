@@ -95,19 +95,21 @@ pub fn lu_decomposition(
         let d = x[kp]; // TODO: numerically zero diagonal element at column check
 
         // Partial pivoting, diagonal elt. has max. magnitude in L.
-        let mut pivt = found
+        let (pivrow, maxabs) = found
             .iter()
             .filter(|i| row_perm[**i].is_none())
             .map(|&i| (i, x[i].abs()))
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .expect("pivot must exist");
 
-        println!("pivrow = {}, maxpiv = {:.6}, d = {:.6}", pivt.0, pivt.1, d);
+        println!("pivrow = {}, maxpiv = {:.6}, d = {:.6}", pivrow, maxabs, d);
 
         // TODO: Threshold pivoting.
-        if !pivot || (row_perm[kp].is_none() && d.abs() >= pivt.1) {
+        let pivt = if !pivot || (row_perm[kp].is_none() && d.abs() >= maxabs) {
             // No pivoting, diagonal element has irow = jcol.
-            pivt = (kp, d);
+            (kp, d)
+        } else {
+            (pivrow, x[pivrow])
         };
 
         // Copy the column elements of U, throwing out zeros.
