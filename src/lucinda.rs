@@ -4,10 +4,6 @@ use sparsetools::{csc::CSC, csr::CSR};
 
 use crate::dfs::DFS;
 
-/// The ratio of the initial LU size to NNZ.
-/// Default value is 4.
-const FILL_RATIO: f64 = 4.0;
-
 // Simplified Compressed Column Storage
 //
 // > We shall represent a column vector as a sequence of records, each containing a
@@ -104,16 +100,8 @@ pub fn lu_decomposition(
     // pivot and is therefore still below the diagonal.
     let mut row_perm: Vec<Option<usize>> = vec![None; n];
 
-    let nnz = a_colptr[n];
-    let colcap = (nnz as f64 * FILL_RATIO) as usize / (2 * n);
-    let mut l_mat: Matrix = (1..=n)
-        .rev()
-        .map(|i| Vec::with_capacity(colcap * (i / n)))
-        .collect();
-    let mut u_mat: Matrix = (1..=n)
-        .map(|i| Vec::with_capacity(colcap * (i / n)))
-        .collect();
-    debug!("nnz = {}, colcap = {}", nnz, colcap);
+    let mut l_mat: Matrix = vec![vec![]; n];
+    let mut u_mat: Matrix = vec![vec![]; n];
 
     // > We compute uj as a dense n-vector, so that in step 3.3 we can subtract a multiple
     // of column k of Lj from it in constant time per nonzero in that column.
@@ -168,11 +156,11 @@ pub fn lu_decomposition(
         };
 
         // Copy the column elements of U, throwing out zeros.
-        for &i in found {
-            if let Some(ip) = row_perm[i] {
-                u_mat[k].push((ip, x[i]));
-            }
-        }
+        u_mat[k] = found
+            .iter()
+            .filter(|i| row_perm[**i].is_some())
+            .map(|i| (row_perm[*i].unwrap(), x[*i]))
+            .collect();
 
         // Swap the max. value in L with the diagonal U(k,k).
         u_mat[k].push((k, pivt.1));
@@ -181,12 +169,11 @@ pub fn lu_decomposition(
         row_perm[pivt.0] = Some(k);
 
         // Copy the column elements of L, throwing out zeros.
-        for &i in found {
-            if row_perm[i].is_none() {
-                // Divide column k of L by U(k,k).
-                l_mat[k].push((i, x[i] / pivt.1));
-            }
-        }
+        l_mat[k] = found
+            .iter()
+            .filter(|i| row_perm[**i].is_none())
+            .map(|i| (*i, x[*i] / pivt.1))
+            .collect();
 
         // > Since we know the nonzero structure of uj before we start,
         // we need only initialize and manipulate the positions in this
