@@ -1,4 +1,6 @@
-use crate::{debug, Matrix};
+use crate::debug::debug;
+use crate::traits::{Int, Scalar};
+use crate::Matrix;
 
 // Depth-first-search workspace.
 pub struct DFS {
@@ -18,10 +20,10 @@ impl DFS {
         }
     }
 
-    pub fn ludfs(
+    pub fn ludfs<I: Int, S: Scalar>(
         &mut self,
-        l_mat: &Matrix,
-        b_rowidx: &[usize],
+        l_mat: &Matrix<I, S>,
+        b_rowidx: &[I],
         rperm: &Vec<Option<usize>>,
     ) -> &[usize] {
         debug!("b = {:?}", b_rowidx);
@@ -45,12 +47,17 @@ impl DFS {
         for &e0 in b_rowidx {
             // The depth-first search must mark the vertices it
             // has reached, to avoid repeating parts of the search.
-            if self.flag[e0] {
+            if self.flag[e0.to_index()] {
                 continue;
             }
 
             // self.dfs(e0, indices, indptr, &mut i_rl_start, rperm);
-            self.dfs(e0, /*indices, indptr,*/ l_mat, &mut i_rl_start, rperm);
+            self.dfs(
+                e0.to_index(),
+                /*indices, indptr,*/ l_mat,
+                &mut i_rl_start,
+                rperm,
+            );
         }
         let found = &self.root_list[i_rl_start..];
         debug!("found = {:?}", found.to_vec());
@@ -67,12 +74,12 @@ impl DFS {
     //
     // Author: Jake Vanderplas  -- <vanderplas@astro.washington.edu>
     // License: BSD, (C) 2012
-    pub(crate) fn dfs(
+    pub(crate) fn dfs<I: Int, S: Scalar>(
         &mut self,
         head_node: usize,
         // indices: &[usize],
         // indptr: &[usize],
-        l_mat: &Matrix,
+        l_mat: &Matrix<I, S>,
         i_rl_start: &mut usize,
         rperm: &Vec<Option<usize>>,
     ) {
@@ -138,7 +145,7 @@ impl DFS {
                     let (cnode, _) = &lcol[j];
                     // let cnode = indices[i];
                     // let cnode = l_mat[indptr1.0][j].0;
-                    if self.flag[*cnode] {
+                    if self.flag[cnode.to_index()] {
                         continue;
                     } else {
                         // self.ptr_list[i_root] = i;
@@ -146,7 +153,7 @@ impl DFS {
 
                         i_root += 1;
                         i_root_opt = Some(i_root);
-                        self.root_list[i_root] = *cnode;
+                        self.root_list[i_root] = cnode.to_index();
                         // node_list[i_nl_end] = cnode;
                         // flag[cnode] = true;
                         // i_nl_end += 1;

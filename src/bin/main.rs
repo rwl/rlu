@@ -1,10 +1,12 @@
 use std::iter::zip;
 
-use lucinda::{matrix_to_csc, solve, Matrix};
+use lucinda::{
+    solve, Matrix, {Int, Scalar},
+};
 
 fn main() {
     let n = 5;
-    let mut a_mat: Matrix = vec![vec![]; n];
+    let mut a_mat: Matrix<usize, f64> = vec![vec![]; n];
     for i in 0..n {
         if i == n - 1 {
             a_mat[i].push((0, 1.0));
@@ -29,14 +31,16 @@ fn main() {
     //     |    2 5 4 3|
     //     |      2 5 4|
     //     |1       2 5|
-    let a_csc = matrix_to_csc(&a_mat);
-    print!("A =\n{}", a_csc.to_csr().to_table());
+    #[cfg(feature = "debug")]
+    print!("A =\n{}", lucinda::matrix_table(&a_mat));
+
+    let (n, rowidx, colptr, values) = matrix_to_csc(&a_mat);
 
     // let p = None;
     let mut q: Vec<usize> = (0..n).map(|i| i).collect();
     // q.swap(0, 0);
     q.swap(0, 1);
-    // q.swap(2, 3);
+    q.swap(2, 3);
     // q.swap(0, 4);
     // q.swap(5, 6);
     println!("q = {:?}", q);
@@ -71,15 +75,7 @@ fn main() {
         //             // x[i] = b[i];
         //         }
 
-        solve(
-            a_csc.cols(),
-            a_csc.rowidx(),
-            a_csc.colptr(),
-            a_csc.values(),
-            Some(&q),
-            &mut x,
-            false,
-        );
+        solve(n, &rowidx, &colptr, &values, Some(&q), &mut x, false);
 
         // Matrix-vector multiply b2 = A*x and print residual.
         let mut b2 = vec![0.0; n];
@@ -113,4 +109,25 @@ fn main() {
         }
         println!("{:?}", b2);
     }
+}
+
+pub fn matrix_to_csc<I: Int, S: Scalar>(m: &Matrix<I, S>) -> (usize, Vec<I>, Vec<I>, Vec<S>) {
+    let n = m.len();
+    let nnz = m.iter().map(|c| c.len()).fold(0, |acc, e| acc + e);
+    let mut rowidx: Vec<I> = Vec::with_capacity(nnz);
+    let mut colptr: Vec<I> = Vec::with_capacity(n + 1);
+    let mut values: Vec<S> = Vec::with_capacity(nnz);
+
+    let mut idxptr: usize = 0;
+    for col in m {
+        colptr.push(I::from_usize(idxptr));
+        for (j, x) in col {
+            values.push(*x);
+            rowidx.push(*j);
+            idxptr += 1
+        }
+    }
+    colptr.push(I::from_usize(idxptr));
+
+    (n, rowidx, colptr, values)
 }
