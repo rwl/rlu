@@ -188,6 +188,11 @@ pub fn lu_decomposition(
             }
         }
 
+        // > Since we know the nonzero structure of uj before we start,
+        // we need only initialize and manipulate the positions in this
+        // dense vector that correspond to nonzero positions.
+        found.iter().for_each(|i| x[*i] = 0.0);
+
         // debug!("U[:,k] = {:?}", u_mat[k]);
         // debug!("L[:,k] = {:?}", l_mat[k]);
     }
@@ -218,10 +223,6 @@ fn lucomp(
     // FOR(e, x) FOR(l, L[e->fst])
     //   x[l->fst] -= l->snd * e->snd;
 
-    // > Since we know the nonzero structure of uj before we start,
-    // we need only initialize and manipulate the positions in this
-    // dense vector that correspond to nonzero positions. TODO
-    x.fill(0.0);
     for (bi, bx) in zip(b_rowidx, b_values) {
         x[*bi] = *bx; // scatter
     }
