@@ -42,8 +42,6 @@ impl DFS {
 
         let mut i_rl_start = n;
 
-        self.flag.fill(false);
-
         for &e0 in b_rowidx {
             // The depth-first search must mark the vertices it
             // has reached, to avoid repeating parts of the search.
@@ -54,9 +52,13 @@ impl DFS {
             // self.dfs(e0, indices, indptr, &mut i_rl_start, rperm);
             self.dfs(e0, /*indices, indptr,*/ l_mat, &mut i_rl_start, rperm);
         }
-        debug!("found = {:?}", self.root_list[i_rl_start..].to_vec());
+        let found = &self.root_list[i_rl_start..];
+        debug!("found = {:?}", found.to_vec());
 
-        &self.root_list[i_rl_start..]
+        // debug!("flag = {:?}", self.flag);
+        found.iter().for_each(|i| self.flag[*i] = false);
+
+        found
     }
 
     // Based on `depth_first_directed` from SciPy v1.11.
