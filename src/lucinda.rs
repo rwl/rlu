@@ -4,6 +4,10 @@ use sparsetools::{csc::CSC, csr::CSR};
 
 use crate::dfs::DFS;
 
+/// The ratio of the initial LU size to NNZ.
+/// Default value is 4.
+const FILL_RATIO: f64 = 4.0;
+
 // Simplified Compressed Column Storage
 //
 // > We shall represent a column vector as a sequence of records, each containing a
@@ -88,7 +92,7 @@ pub fn solve(
 pub fn lu_decomposition(
     n: usize,
     a_rowidx: &[usize],
-    a_colptr: &[usize],
+    a_colptr: &[usize], // n+1
     a_values: &[f64],
     col_perm: Option<&[usize]>,
     pivot: bool,
@@ -100,8 +104,16 @@ pub fn lu_decomposition(
     // pivot and is therefore still below the diagonal.
     let mut row_perm: Vec<Option<usize>> = vec![None; n];
 
-    let mut l_mat: Matrix = vec![vec![]; n];
-    let mut u_mat: Matrix = vec![vec![]; n];
+    let nnz = a_colptr[n];
+    let colcap = (nnz as f64 * FILL_RATIO) as usize / (2 * n);
+    let mut l_mat: Matrix = (1..=n)
+        .rev()
+        .map(|i| Vec::with_capacity(colcap * (i / n)))
+        .collect();
+    let mut u_mat: Matrix = (1..=n)
+        .map(|i| Vec::with_capacity(colcap * (i / n)))
+        .collect();
+    debug!("nnz = {}, colcap = {}", nnz, colcap);
 
     // > We compute uj as a dense n-vector, so that in step 3.3 we can subtract a multiple
     // of column k of Lj from it in constant time per nonzero in that column.
