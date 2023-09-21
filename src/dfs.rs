@@ -1,9 +1,10 @@
-use crate::{debug, matrix_to_csc, Matrix};
+use crate::{debug, Matrix};
 
 // Depth-first-search workspace.
 pub struct DFS {
     root_list: Vec<usize>,
-    ptr_list: Vec<usize>,
+    // ptr_list: Vec<usize>,
+    ptr_list2: Vec<(usize, usize)>,
     flag: Vec<bool>,
 }
 
@@ -11,7 +12,8 @@ impl DFS {
     pub fn new(n: usize) -> Self {
         Self {
             root_list: vec![0; n],
-            ptr_list: vec![0; n],
+            // ptr_list: vec![0; n],
+            ptr_list2: vec![(0, 0); n],
             flag: vec![false; n],
         }
     }
@@ -24,12 +26,19 @@ impl DFS {
     ) -> &[usize] {
         debug!("b = {:?}", b_rowidx);
 
-        let csgraph = matrix_to_csc(l_mat);
+        // let csgraph = matrix_to_csc(l_mat);
         // debug!("L =\n{}", csgraph.to_table());
 
-        let n = csgraph.cols();
-        let indices = csgraph.rowidx();
-        let indptr = csgraph.colptr();
+        let n = l_mat.len();
+        // let n = csgraph.cols();
+        // let indices = csgraph.rowidx();
+        // let indptr = csgraph.colptr();
+        // let n = l_mat.cols();
+        // let indices = l_mat.rowidx();
+        // let indptr = l_mat.colptr();
+
+        // println!("\nindices = {:?}", indices);
+        // println!("indptr = {:?}", indptr);
 
         let mut i_rl_start = n;
 
@@ -42,7 +51,8 @@ impl DFS {
                 continue;
             }
 
-            self.dfs(e0, indices, indptr, &mut i_rl_start, rperm);
+            // self.dfs(e0, indices, indptr, &mut i_rl_start, rperm);
+            self.dfs(e0, /*indices, indptr,*/ l_mat, &mut i_rl_start, rperm);
         }
         debug!("found = {:?}", self.root_list[i_rl_start..].to_vec());
 
@@ -58,8 +68,9 @@ impl DFS {
     pub(crate) fn dfs(
         &mut self,
         head_node: usize,
-        indices: &[usize],
-        indptr: &[usize],
+        // indices: &[usize],
+        // indptr: &[usize],
+        l_mat: &Matrix,
         i_rl_start: &mut usize,
         rperm: &Vec<Option<usize>>,
     ) {
@@ -78,38 +89,70 @@ impl DFS {
             if !self.flag[pnode] {
                 self.flag[pnode] = true;
                 match pnode_p {
-                    Some(pnode_p) => self.ptr_list[i_root] = indptr[pnode_p],
-                    None => self.ptr_list[i_root] = 0,
+                    Some(pnode_p) => {
+                        // self.ptr_list[i_root] = indptr[pnode_p];
+                        self.ptr_list2[i_root] = (pnode_p, 0);
+                    }
+                    None => {
+                        // self.ptr_list[i_root] = 0;
+                        self.ptr_list2[i_root] = (0, 0);
+                    }
                 }
             }
 
             let mut no_children = true;
 
-            let indptr1 = self.ptr_list[i_root];
-            let indptr2 = match pnode_p {
-                Some(pnode_p) => indptr[pnode_p + 1],
-                None => 0,
-            };
-            // debug!(
-            //     "pnode = {}, pnode_p = {:?}, p1 = {}, p2 = {}",
-            //     pnode, pnode_p, indptr1, indptr2
+            // let indptr1 = self.ptr_list[i_root];
+            // let indptr2 = match pnode_p {
+            //     Some(pnode_p) => indptr[pnode_p + 1],
+            //     None => 0,
+            // };
+            // println!(
+            //     "\nind[{}..{}] = {:?}",
+            //     indptr1,
+            //     indptr2,
+            //     indices[indptr1..indptr2].to_vec()
             // );
-            for i in indptr1..indptr2 {
-                let cnode = indices[i];
-                if self.flag[cnode] {
-                    continue;
-                } else {
-                    self.ptr_list[i_root] = i;
-                    i_root += 1;
-                    i_root_opt = Some(i_root);
-                    self.root_list[i_root] = cnode;
-                    // node_list[i_nl_end] = cnode;
-                    // flag[cnode] = true;
-                    // i_nl_end += 1;
 
-                    // debug!("i_root = {}, cnode = {}", i_root, cnode);
-                    no_children = false;
-                    break;
+            if pnode_p.is_some() {
+                let (lcolind, lrow_offset) = self.ptr_list2[i_root];
+                let lcol = &l_mat[lcolind];
+                // println!(
+                //     "col = {} {} ({}) - {:?}",
+                //     lcolind,
+                //     lrow_offset,
+                //     pnode_p.is_none(),
+                //     lcol
+                // );
+
+                // debug!(
+                //     "pnode = {}, pnode_p = {:?}, p1 = {}, p2 = {}",
+                //     pnode, pnode_p, indptr1, indptr2
+                // );
+                let mut k = 0;
+                // for i in indptr1..indptr2 {
+                for j in lrow_offset..lcol.len() {
+                    k += 1;
+                    let (cnode, _) = lcol[j];
+                    // let cnode = indices[i];
+                    // let cnode = l_mat[indptr1.0][j].0;
+                    if self.flag[cnode] {
+                        continue;
+                    } else {
+                        // self.ptr_list[i_root] = i;
+                        self.ptr_list2[i_root] = (lcolind, k - 1);
+
+                        i_root += 1;
+                        i_root_opt = Some(i_root);
+                        self.root_list[i_root] = cnode;
+                        // node_list[i_nl_end] = cnode;
+                        // flag[cnode] = true;
+                        // i_nl_end += 1;
+
+                        // debug!("i_root = {}, cnode = {}", i_root, cnode);
+                        no_children = false;
+                        break;
+                    }
                 }
             }
 
