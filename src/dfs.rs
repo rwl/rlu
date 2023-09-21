@@ -135,10 +135,10 @@ impl DFS {
                 // for i in indptr1..indptr2 {
                 for j in lrow_offset..lcol.len() {
                     k += 1;
-                    let (cnode, _) = lcol[j];
+                    let (cnode, _) = &lcol[j];
                     // let cnode = indices[i];
                     // let cnode = l_mat[indptr1.0][j].0;
-                    if self.flag[cnode] {
+                    if self.flag[*cnode] {
                         continue;
                     } else {
                         // self.ptr_list[i_root] = i;
@@ -146,7 +146,7 @@ impl DFS {
 
                         i_root += 1;
                         i_root_opt = Some(i_root);
-                        self.root_list[i_root] = cnode;
+                        self.root_list[i_root] = *cnode;
                         // node_list[i_nl_end] = cnode;
                         // flag[cnode] = true;
                         // i_nl_end += 1;
