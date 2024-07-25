@@ -5,6 +5,8 @@ mod dfs;
 mod rlu;
 mod traits;
 
+#[cfg(feature = "spsolve")]
+pub mod spsolve;
 
 pub use rlu::*;
 pub use traits::*;
