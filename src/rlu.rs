@@ -13,12 +13,12 @@ pub type Record<I, S> = (I, S);
 pub type Col<I, S> = Vec<Record<I, S>>;
 pub type Matrix<I, S> = Vec<Col<I, S>>;
 
-pub fn solve<I: Int, S: Scalar>(
+pub fn solve<I: Int, S: Scalar, P: Int>(
     n: usize,
     a_rowidx: &[I],
     a_colptr: &[I],
     a_values: &[S],
-    col_perm: Option<&[usize]>,
+    col_perm: Option<&[P]>,
     b: &mut [S],
     trans: bool,
 ) {
@@ -40,7 +40,7 @@ pub fn solve<I: Int, S: Scalar>(
     match col_perm {
         Some(cperm) => {
             for i in 0..n {
-                b[cperm[i]] = x[i];
+                b[cperm[i].to_index()] = x[i];
             }
         }
         None => b.copy_from_slice(&x),
@@ -59,12 +59,12 @@ pub fn solve<I: Int, S: Scalar>(
 // LU decomposition (Gilbert-Peierls)
 //
 // Note: A is LU-decomposable <=> all principal minors are nonsingular
-pub fn lu_decomposition<I: Int, S: Scalar>(
+pub fn lu_decomposition<I: Int, S: Scalar, P: Int>(
     n: usize,
     a_rowidx: &[I],
     a_colptr: &[I], // n+1
     a_values: &[S],
-    col_perm: Option<&[usize]>,
+    col_perm: Option<&[P]>,
     pivot: bool,
 ) -> (Matrix<I, S>, Matrix<I, S>, Vec<Option<usize>>) {
     let mut dfs = DFS::new(n);
@@ -83,7 +83,7 @@ pub fn lu_decomposition<I: Int, S: Scalar>(
 
     for k in 0..n {
         let kp = match col_perm {
-            Some(perm) => perm[k],
+            Some(perm) => perm[k].to_index(),
             None => k,
         };
         debug!("\nk = {}, kp = {}", k, kp);
@@ -135,6 +135,7 @@ pub fn lu_decomposition<I: Int, S: Scalar>(
 
         // Swap the max. value in L with the diagonal U(k,k).
         u_mat[k].push((I::from_usize(k), pivt.1));
+        u_mat[k].shrink_to_fit(); // free up unused memory
 
         // Record the pivot in P.
         row_perm[pivt.0] = Some(k);
@@ -145,6 +146,7 @@ pub fn lu_decomposition<I: Int, S: Scalar>(
             .filter(|i| row_perm[**i].is_none())
             .map(|i| (I::from_usize(*i), x[*i] / pivt.1))
             .collect();
+        l_mat[k].shrink_to_fit(); // free up unused memory
 
         // > Since we know the nonzero structure of uj before we start,
         // we need only initialize and manipulate the positions in this

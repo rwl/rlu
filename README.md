@@ -1,6 +1,6 @@
-# lucinda
+# rlu
 
-Sparse LU Decomposition (Gilbert-Peierls)
+Sparse LU Decomposition in Rust using Gilbert-Peierls method.
 
 ## License
 

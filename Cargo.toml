@@ -1,8 +1,10 @@
 [package]
-name = "lucinda"
+name = "rlu"
 version = "0.1.0"
 description = "Sparse LU Decomposition (Gilbert-Peierls)"
 edition = "2021"
+license = "BSD-3"
+repository = "https://github.com/rwl/rlu"
 
 [dependencies]
 num-traits = "0.2"

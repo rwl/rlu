@@ -1,12 +1,9 @@
 use std::iter::zip;
 
-use lucinda::{
-    solve, Matrix, {Int, Scalar},
-};
 
 fn main() {
     let n = 5;
-    let mut a_mat: Matrix<usize, f64> = vec![vec![]; n];
+    let mut a_mat: rlu::Matrix<usize, f64> = vec![vec![]; n];
     for i in 0..n {
         if i == n - 1 {
             a_mat[i].push((0, 1.0));
@@ -32,7 +29,7 @@ fn main() {
     //     |      2 5 4|
     //     |1       2 5|
     #[cfg(feature = "debug")]
-    print!("A =\n{}", lucinda::matrix_table(&a_mat));
+    print!("A =\n{}", rlu::matrix_table(&a_mat));
 
     let (n, rowidx, colptr, values) = matrix_to_csc(&a_mat);
 
@@ -75,7 +72,7 @@ fn main() {
         //             // x[i] = b[i];
         //         }
 
-        solve(n, &rowidx, &colptr, &values, Some(&q), &mut x, false);
+        rlu::solve(n, &rowidx, &colptr, &values, Some(&q), &mut x, false);
 
         // Matrix-vector multiply b2 = A*x and print residual.
         let mut b2 = vec![0.0; n];
@@ -97,8 +94,8 @@ fn main() {
     {
         let mut b = b0.clone();
         let (l_mat, u_mat): (Matrix, Matrix) = lu_decomposition(&a_mat, None);
-        lucinda::utsolve(&u_mat, &mut b);
-        lucinda::ltsolve(&l_mat, &mut b);
+        rlu::utsolve(&u_mat, &mut b);
+        rlu::ltsolve(&l_mat, &mut b);
         let x = b;
 
         let mut b2 = vec![0.0; n];
@@ -111,7 +108,7 @@ fn main() {
     }
 }
 
-pub fn matrix_to_csc<I: Int, S: Scalar>(m: &Matrix<I, S>) -> (usize, Vec<I>, Vec<I>, Vec<S>) {
+pub fn matrix_to_csc<I: rlu::Int, S: rlu::Scalar>(m: &rlu::Matrix<I, S>) -> (usize, Vec<I>, Vec<I>, Vec<S>) {
     let n = m.len();
     let nnz = m.iter().map(|c| c.len()).fold(0, |acc, e| acc + e);
     let mut rowidx: Vec<I> = Vec::with_capacity(nnz);

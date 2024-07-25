@@ -1,9 +1,12 @@
+//! Sparse LU Decomposition (Gilbert-Peierls)
+
 mod debug;
 mod dfs;
-mod lucinda;
+mod rlu;
 mod traits;
 
-pub use lucinda::*;
+
+pub use rlu::*;
 pub use traits::*;
 
 #[cfg(feature = "debug")]
