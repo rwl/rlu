@@ -3,7 +3,7 @@ name = "rlu"
 version = "0.5.0"
 description = "Sparse LU Decomposition (Gilbert-Peierls)"
 edition = "2021"
-license = "BSD-3"
+license = "BSD-3-Clause"
 repository = "https://github.com/rwl/rlu"
 
 [dependencies]
