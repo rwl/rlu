@@ -33,8 +33,8 @@ pub fn solve<I: Int, S: Scalar, P: Int>(
         lsolve(&l_mat, &mut x);
         usolve(&u_mat, &mut x);
     } else {
-        ltsolve(&l_mat, &mut x);
         utsolve(&u_mat, &mut x);
+        ltsolve(&l_mat, &mut x);
     }
 
     match col_perm {
@@ -240,7 +240,7 @@ pub fn usolve<I: Int, S: Scalar>(u_mat: &Matrix<I, S>, b: &mut [S]) {
 
 pub fn utsolve<I: Int, S: Scalar>(u_mat: &Matrix<I, S>, b: &mut [S]) {
     for e0 in 0..b.len() {
-        for u in &u_mat[e0] {
+        for u in u_mat[e0].iter() {
             if u.0.to_index() == e0 {
                 b[e0] /= u.1;
             } else {
