@@ -1,6 +1,6 @@
 [package]
 name = "rlu"
-version = "0.5.0"
+version = "0.5.1"
 description = "Sparse LU Decomposition (Gilbert-Peierls)"
 edition = "2021"
 license = "BSD-3-Clause"
