@@ -24,7 +24,7 @@ impl DFS {
         &mut self,
         l_mat: &Matrix<I, S>,
         b_rowidx: &[I],
-        rperm: &Vec<Option<usize>>,
+        rperm: &[Option<usize>],
     ) -> &[usize] {
         debug!("b = {:?}", b_rowidx);
 
@@ -59,8 +59,14 @@ impl DFS {
                 rperm,
             );
         }
+
         let found = &self.root_list[i_rl_start..];
-        debug!("found = {:?}", found.to_vec());
+        debug!(
+            "found = {:?} {} {:?}",
+            found.to_vec(),
+            i_rl_start,
+            self.root_list
+        );
 
         // debug!("flag = {:?}", self.flag);
         found.iter().for_each(|i| self.flag[*i] = false);
@@ -81,7 +87,7 @@ impl DFS {
         // indptr: &[usize],
         l_mat: &Matrix<I, S>,
         i_rl_start: &mut usize,
-        rperm: &Vec<Option<usize>>,
+        rperm: &[Option<usize>],
     ) {
         // let n = node_list.len();
 
