@@ -5,7 +5,7 @@ fn main() {
     let rowind = vec![0, 1, 0, 1, 2, 2];
     let data = vec![4.0, 1.0, 1.0, 3.0, 1.0, 2.0];
     let mut b = vec![6.0, 7.0, 8.0];
-    rlu::solve::<usize, f64, usize>(n, &rowind, &colptr, &data, None, &mut b, false);
+    rlu::solve::<usize, f64, usize>(n, &rowind, &colptr, &data, None, &mut b, false).unwrap();
 
     println!("{:?}", b);
 
@@ -13,7 +13,7 @@ fn main() {
     let colind = vec![0, 1, 0, 1, 1, 2];
     let data = vec![4.0, 1.0, 1.0, 3.0, 1.0, 2.0];
     let mut b = vec![6.0, 7.0, 8.0];
-    rlu::solve::<usize, f64, usize>(n, &colind, &rowptr, &data, None, &mut b, true);
+    rlu::solve::<usize, f64, usize>(n, &colind, &rowptr, &data, None, &mut b, true).unwrap();
 
     println!("{:?}", b);
 }

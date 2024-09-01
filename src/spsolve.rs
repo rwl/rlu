@@ -27,8 +27,6 @@ where
         let (p, _p_inv, _info) = amd::order::<I>(I::from_usize(n), &a_p, &a_i, &self.control)
             .map_err(|st| format_err!("amd status: {:?}", st))?;
 
-        solve(n, &a_i, &a_p, &a_x, Some(&p), b, trans);
-
-        Ok(())
+        solve(n, &a_i, &a_p, &a_x, Some(&p), b, trans)
     }
 }

@@ -1,6 +1,5 @@
 use std::iter::zip;
 
-
 fn main() {
     let n = 5;
     let mut a_mat: rlu::Matrix<usize, f64> = vec![vec![]; n];
@@ -72,7 +71,7 @@ fn main() {
         //             // x[i] = b[i];
         //         }
 
-        rlu::solve(n, &rowidx, &colptr, &values, Some(&q), &mut x, false);
+        rlu::solve(n, &rowidx, &colptr, &values, Some(&q), &mut x, false).unwrap();
 
         // Matrix-vector multiply b2 = A*x and print residual.
         let mut b2 = vec![0.0; n];
@@ -108,7 +107,9 @@ fn main() {
     }
 }
 
-pub fn matrix_to_csc<I: rlu::Int, S: rlu::Scalar>(m: &rlu::Matrix<I, S>) -> (usize, Vec<I>, Vec<I>, Vec<S>) {
+pub fn matrix_to_csc<I: rlu::Int, S: rlu::Scalar>(
+    m: &rlu::Matrix<I, S>,
+) -> (usize, Vec<I>, Vec<I>, Vec<S>) {
     let n = m.len();
     let nnz = m.iter().map(|c| c.len()).fold(0, |acc, e| acc + e);
     let mut rowidx: Vec<I> = Vec::with_capacity(nnz);

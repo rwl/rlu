@@ -1,3 +1,4 @@
+use anyhow::{format_err, Result};
 use std::iter::zip;
 
 use crate::debug::debug;
@@ -19,33 +20,46 @@ pub fn solve<I: Int, S: Scalar, P: Int>(
     a_colptr: &[I],
     a_values: &[S],
     col_perm: Option<&[P]>,
-    b: &mut [S],
+    rhs: &mut [S],
     trans: bool,
-) {
+) -> Result<()> {
+    if rhs.len() % n != 0 {
+        return Err(format_err!(
+            "len rhs ({}) must be a multiple of n ({})",
+            rhs.len(),
+            n
+        ));
+    }
+
     let (l_mat, u_mat, p) =
         lu_decomposition(n, a_rowidx, a_colptr, a_values, col_perm, None, None, true);
 
     let mut x = vec![S::zero(); n];
-    for i in 0..n {
-        x[p[i].unwrap()] = b[i];
-    }
 
-    if !trans {
-        lsolve(&l_mat, &mut x);
-        usolve(&u_mat, &mut x);
-    } else {
-        utsolve(&u_mat, &mut x);
-        ltsolve(&l_mat, &mut x);
-    }
-
-    match col_perm {
-        Some(cperm) => {
-            for i in 0..n {
-                b[cperm[i].to_index()] = x[i];
-            }
+    rhs.chunks_exact_mut(n).try_for_each(|b| {
+        for i in 0..n {
+            x[p[i].unwrap()] = b[i];
         }
-        None => b.copy_from_slice(&x),
-    }
+
+        if !trans {
+            lsolve(&l_mat, &mut x);
+            usolve(&u_mat, &mut x);
+        } else {
+            utsolve(&u_mat, &mut x);
+            ltsolve(&l_mat, &mut x);
+        }
+
+        match col_perm {
+            Some(cperm) => {
+                for i in 0..n {
+                    b[cperm[i].to_index()] = x[i];
+                }
+            }
+            None => b.copy_from_slice(&x),
+        }
+
+        Ok(())
+    })
 }
 
 // 1. for j:= to n do
